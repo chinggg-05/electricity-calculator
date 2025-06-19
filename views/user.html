@@ -1,0 +1,197 @@
+<!DOCTYPE html> <!-- 宣告這是一份 HTML5 文件 -->
+<html lang="zh-TW"> <!-- 設定語系為繁體中文 -->
+<head>
+  <meta charset="UTF-8"> <!-- 設定字元編碼為 UTF-8 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- 響應式設計，適合各種裝置 -->
+  <title>電費計算表</title> <!-- 頁面標題 -->
+  <style>
+    body {
+      font-family: Arial, sans-serif; /* 設定字型 */
+      background-color: #f4f4f4; /* 背景顏色 */
+      margin: 0;
+      padding: 0;
+    }
+
+    .cardLayout {
+      border: 1px solid #ccc; /* 邊框 */
+      border-radius: 5px; /* 圓角 */
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* 陰影 */
+      margin: 10px;
+      padding: 10px;
+      background-color: #fff; /* 白色背景 */
+    }
+
+    table {
+      width: 100%; /* 表格寬度 */
+      border-collapse: collapse; /* 合併邊框 */
+      margin-top: 10px;
+    }
+    table, th, td {
+      border: 1px solid #ddd; /* 表格邊框 */
+    }
+    th, td {
+      padding: 10px; /* 儲存格內距 */
+      text-align: center; /* 文字置中 */
+    }
+    th {
+      background-color: #f2f2f2; /* 標題列背景色 */
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      cursor: pointer; /* 滑鼠指標變手指 */
+    }
+    input {
+      padding: 5px;
+      margin-right: 10px;
+    }
+
+    #statusText {
+      font-weight: bold;
+      color: #007acc;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="cardLayout">
+    <h2 style="text-align: center">電費計算表</h2> <!-- 頁面標題 -->
+
+    <!-- 使用者輸入區：輸入起始度數、當月度數、每度電價、月份 -->
+    <input type="number" id="inputStart" placeholder="起始度數">
+    <input type="number" id="inputEnd" placeholder="當月度數">
+    <input type="number" id="inputRate" placeholder="每度電價" step="0.01">
+    <input type="month" id="inputMonth" placeholder="月份">
+    <button id="addButton">新增資料</button> <!-- 新增資料按鈕 -->
+    <button id="deleteButton">刪除上一筆資料</button> <!-- 刪除資料按鈕 -->
+
+    <hr>
+
+    <!-- 查詢功能區：可依月份查詢或顯示全部 -->
+    <label>查詢月份：</label>
+    <input type="month" id="searchMonth"> <!-- 月份選擇輸入欄位 -->
+    <button onclick="searchByMonth()">查詢</button>
+    <button onclick="fetchData()">顯示全部資料</button> 
+
+    <!-- 狀態顯示區：顯示目前資料狀態 -->
+    <p id="statusText">目前顯示：全部資料</p>
+
+    <!-- 電費資料表格，內容由 JavaScript 動態產生 -->
+    <table id="record2">
+      <thead>
+        <tr>
+          <th>起始度數</th>
+          <th>當月度數</th>
+          <th>每度電價</th>
+          <th>使用度數</th>
+          <th>總金額</th>
+          <th>所屬月份</th>
+        </tr>
+      </thead>
+      <tbody></tbody> 
+    </table>
+  </div>
+
+  <script>
+    function fetchData() {
+      // 從後端 /users API 抓取所有電費資料
+      fetch("/users")
+        .then(res => res.json()) // 將回應轉成 JSON 格式
+        .then(data => {
+          renderTable(data.users); // 用 JS 將資料顯示到表格
+          updateStatus("全部資料"); // 更新狀態文字
+        });
+    }
+
+    // 將資料逐筆加入表格
+    function renderTable(data) {
+      const tbody = document.querySelector("#record2 tbody"); // 取得表格的 tbody
+      tbody.innerHTML = ""; // 清空原有內容
+      data.forEach(row => { // 對每一筆資料
+        const tr = document.createElement("tr"); // 建立一個新的表格列
+        ["start", "end", "rate", "usage", "amount", "record_month"].forEach(key => {
+          const td = document.createElement("td"); // 建立一個新的儲存格
+          td.textContent = row[key]; // 將資料填入儲存格
+          tr.appendChild(td); // 把儲存格加到這一列
+        });
+        tbody.appendChild(tr); // 把這一列加到表格裡
+      });
+    }
+
+    // 新增資料到後端
+    function addData() {
+      const start = parseFloat(document.getElementById("inputStart").value);
+      const end = parseFloat(document.getElementById("inputEnd").value);
+      const rate = parseFloat(document.getElementById("inputRate").value);
+      const month = document.getElementById("inputMonth").value;
+
+      // 檢查欄位是否填寫完整
+      if (!month || isNaN(start) || isNaN(end) || isNaN(rate)) {
+        alert("請填入所有欄位");
+        return;
+      }
+
+      // 傳送 POST 請求到後端
+      fetch("/addUser", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }, // 告訴後端資料格式是 JSON
+        body: JSON.stringify({ start, end, rate, record_month: month }) // 將資料轉成 JSON 字串
+      })
+      .then(res => res.json()) 
+      .then(() => {
+        fetchData(); // 新增成功後重新取得並顯示所有資料
+        // 清空輸入欄位，方便下次輸入
+        document.getElementById("inputStart").value = "";
+        document.getElementById("inputEnd").value = "";
+        document.getElementById("inputRate").value = "";
+        document.getElementById("inputMonth").value = "";
+      });
+    }
+
+    // 刪除最後一筆資料
+    function deleteLastData() {
+      if (!confirm("你確定要刪除最後一筆資料嗎？")) return; // 確認視窗
+
+      fetch("/deleteLast", { method: "DELETE" })
+        .then(res => res.json())
+        .then(() => fetchData()); // 刪除後重新顯示資料
+    }
+
+    // 依指定月份查詢資料
+    function searchByMonth() {
+      // 取得使用者選擇的查詢月份
+      const month = document.getElementById("searchMonth").value;
+      if (!month) {
+        alert("請選擇查詢月份！"); // 如果沒選月份就跳警告
+        return;
+      }
+
+      // 向後端發送查詢指定月份的請求
+      fetch(`/search?month=${month}`)
+        .then(res => res.json()) // 將回應轉成 JSON 格式
+        .then(data => {
+          if (data.results.length === 0) {
+            alert("這個月份沒有資料！"); // 查無資料時提示
+          }
+          renderTable(data.results); // 顯示查詢結果到表格
+          updateStatus(`篩選中：${month}`); // 更新狀態文字
+          document.getElementById("searchMonth").value = ""; // 清空查詢欄位
+        });
+    }
+
+    // 更新狀態提示文字
+    function updateStatus(text) {
+      // 將狀態文字顯示在網頁上
+      document.getElementById("statusText").textContent = `目前顯示：${text}`;
+    }
+
+    // 頁面載入時，綁定按鈕事件並取得資料
+    document.addEventListener("DOMContentLoaded", () => {
+      fetchData(); // 頁面載入時自動取得全部資料
+      document.getElementById("addButton").addEventListener("click", addData); // 綁定「新增資料」按鈕
+      document.getElementById("deleteButton").addEventListener("click", deleteLastData); // 綁定「刪除上一筆資料」按鈕
+    });
+  </script>
+</body>
+</html>
